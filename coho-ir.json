@@ -1,0 +1,10 @@
+{
+  "irVersion": "1.0",
+  "source": {
+    "project": "your-project-id",
+    "ref": "v1.0.0",
+    "immutable": true,
+    "schemaHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "types": {}
+}

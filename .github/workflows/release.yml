@@ -1,0 +1,42 @@
+name: Release
+
+# Builds the library from a Coho tag and publishes it to GitHub Packages. Run it by hand once
+# the tag is cut, naming the tag and the version to publish. For another Maven repository,
+# change the repository in build.gradle.kts.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The Coho tag to build from, such as v1.4.0
+        required: true
+      version:
+        description: The version to publish, such as 1.4.0
+        required: true
+
+permissions:
+  contents: read
+  # GitHub Packages needs this to publish. Remove it for any other repository.
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      # Inputs reach the shell as variables, never pasted into the script, so a crafted tag
+      # name cannot run commands.
+      - name: Pull the type model for the tag, and generate
+        run: ./gradlew cohoPull --args="--ref $REF" cohoGenerate
+        env:
+          REF: ${{ inputs.ref }}
+          COHO_TOKEN: ${{ secrets.COHO_TOKEN }}
+      - name: Build, test and publish
+        run: ./gradlew build publish -Pversion="$VERSION"
+        env:
+          VERSION: ${{ inputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

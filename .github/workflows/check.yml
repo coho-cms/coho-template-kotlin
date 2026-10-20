@@ -1,0 +1,25 @@
+name: Check
+
+# Version branches only, such as v2026.1.0: pull requests into one, and commits to one.
+on:
+  pull_request:
+    branches: ['v*']
+  push:
+    branches: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      # Builds, tests, and fails when the generated code is not what the committed type model
+      # generates (cohoCheck, which check runs).
+      - run: ./gradlew build
