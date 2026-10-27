@@ -19,8 +19,8 @@ val cohoCodegen: Configuration = configurations.create("cohoCodegen")
 dependencies()
 {
     // In the API: the library's types derive from the runtime's, and apps call it.
-    api("com.coho-cms:coho-delivery:2026.1.0")
-    cohoCodegen("com.coho-cms:coho-codegen:2026.1.0")
+    api("com.coho-cms:coho-delivery:2026.2.0-alpha.1")
+    cohoCodegen("com.coho-cms:coho-codegen:2026.2.0-alpha.1")
 
     testImplementation(kotlin("test"))
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
