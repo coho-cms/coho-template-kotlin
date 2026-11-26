@@ -1,0 +1,94 @@
+name: Zip
+
+# The template as a download, for the getting-started guides: a release-v* tag gets a GitHub
+# release with the template zipped under a name without the version, so a page can link to
+# releases/latest/download/<repository>.zip and never change the link. The zip opens to a
+# folder named for the repository, also without the version.
+#
+# This file is the template's own plumbing, not part of a reader's library: .gitattributes
+# marks it export-ignore, so neither this zip nor GitHub's tag archives carry it.
+#
+# Run it by hand to zip a tag made before this workflow existed. GitHub only offers a
+# workflow to run by hand once it is on the default branch.
+on:
+  push:
+    tags: ['release-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to zip, such as release-v2026.2.8
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    env:
+      # Inputs reach the shell as variables, never pasted into the script, so a crafted tag
+      # name cannot run commands.
+      TAG: ${{ inputs.tag || github.ref_name }}
+      NAME: ${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Read the version
+        run: |
+          version="${TAG#release-v}"
+          # The same forms as the other repositories' releases: a final, or an alpha, beta or
+          # release candidate.
+          if [[ "$TAG" != release-v* || ! "$version" =~ ^[0-9]{4}\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]]; then
+            echo "::error::Use forms like release-v2026.2.8, release-v2026.2.8a1, release-v2026.2.8b1 or release-v2026.2.8rc1, not $TAG."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Zip the tag
+        # git archive leaves out what .gitattributes marks export-ignore, and keeps gradlew
+        # executable.
+        run: |
+          mkdir dist
+          git archive --format=zip --prefix="$NAME/" -o "dist/$NAME-$VERSION.zip" "$TAG"
+          cp "dist/$NAME-$VERSION.zip" "dist/$NAME.zip"
+          ls -l dist
+
+      - name: Check what the zip holds
+        # The guides unzip it, rename the folder, and run ./gradlew, on macOS, Linux, and
+        # Windows.
+        run: |
+          listing="$(unzip -Z1 "dist/$NAME.zip")"
+          for path in build.gradle.kts settings.gradle.kts gradlew gradlew.bat gradle/wrapper/gradle-wrapper.jar coho.config.json .env.example; do
+            grep -qx "$NAME/$path" <<< "$listing" || { echo "::error::The zip has no $NAME/$path"; exit 1; }
+          done
+          if grep -q "^$NAME/.github/workflows/zip.yml$" <<< "$listing"; then
+            echo "::error::The zip carries this workflow"
+            exit 1
+          fi
+          unzip -Z "dist/$NAME.zip" "$NAME/gradlew" | grep -q '^-rwx' || { echo "::error::gradlew is not executable in the zip"; exit 1; }
+
+      - name: Checksums
+        run: |
+          cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # An alpha, beta or release candidate is a pre-release on GitHub too, so it never
+          # becomes what the latest link serves.
+          prerelease=""
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then
+            prerelease="--prerelease"
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$NAME $VERSION" \
+              --generate-notes \
+              --verify-tag $prerelease
+          fi

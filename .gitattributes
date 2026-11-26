@@ -1,0 +1,4 @@
+# The template's own plumbing, left out of its zip and GitHub's tag archives, so a library
+# made from the template does not carry it.
+.gitattributes export-ignore
+.github/workflows/zip.yml export-ignore
